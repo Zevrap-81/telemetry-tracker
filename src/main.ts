@@ -30,6 +30,14 @@ const forwarder = new Forwarder(outbox, publisher, {
   publishTimeoutMs: settings.publishTimeoutMs,
 });
 
+// stdout is the network. A consumer that closes the pipe (EPIPE) surfaces
+// both through the write callback, which rejects the publish so it is
+// retried, and as an 'error' event on the stream. Without a listener that
+// event is fatal, which would turn "channel down" into "process down".
+process.stdout.on("error", (err: Error) => {
+  console.error("stdout error, publishes will be retried:", err.message);
+});
+
 // 3. Run until told to stop.
 scheduler.start();
 forwarder.start();
@@ -39,17 +47,21 @@ console.error(
     `max ${settings.maxInFlight} in flight, publish failure rate ${settings.publishFailureRate}`,
 );
 
-// 4. Shutdown. Stop the timers and close the database, then let Node exit on
-//    its own once nothing is pending. No process.exit(): that could cut off a
-//    stdout write still in the pipe. There is nothing to flush: every tick
-//    that finished has already committed, and anything unacked is resent
-//    after the next start. A hung publish holds its timeout timer, so exit
-//    can take up to PUBLISH_TIMEOUT_MS.
-function shutdown(signal: string): void {
+// 4. Shutdown. Stop the ticks, wait for publishes already in flight to
+//    settle or time out, then close the database and let Node exit on its
+//    own. No process.exit(): that could cut off a stdout write still in the
+//    pipe. Nothing needs flushing: every tick that finished has already
+//    committed, and anything unacked is resent after the next start.
+//    Idempotent, since a supervisor may send SIGTERM after an operator's
+//    SIGINT.
+let stopping = false;
+async function shutdown(signal: string): Promise<void> {
+  if (stopping) return;
+  stopping = true;
   console.error(`${signal} received, stopping`);
   scheduler.stop();
-  forwarder.stop();
+  await forwarder.stop();
   outbox.close();
 }
-process.once("SIGINT", () => shutdown("SIGINT"));
-process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

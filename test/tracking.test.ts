@@ -49,6 +49,28 @@ describe("Tracker: first sample", () => {
   });
 });
 
+describe("Tracker: source resolution", () => {
+  test("an injected source wins over the name in the config", () => {
+    // config says "sin", test injects identity: identity must be used
+    const tracker = makeTracker({ source: "sin" }, identity);
+
+    assert.equal(tracker.sample(123, 0)?.value, 123);
+  });
+
+  test("without an injected source the name is resolved through the registry", () => {
+    const tracker = new Tracker({ name: "t", source: "cos", sampleMs: 1000, precision: 0 }, HEARTBEAT_MS);
+
+    assert.equal(tracker.sample(0, 0)?.value, 1);
+  });
+
+  test("an unknown name with no injected source throws an Error, not a string", () => {
+    assert.throws(
+      () => new Tracker({ name: "t", source: "toString", sampleMs: 1000, precision: 0 }, HEARTBEAT_MS),
+      (err: unknown) => err instanceof Error && /unknown source/.test(err.message),
+    );
+  });
+});
+
 describe("Tracker: significant change", () => {
   test("a change below precision is dropped", () => {
     const tracker = makeTracker();

@@ -53,6 +53,15 @@ describe("loadTrackerConfigs", () => {
     assert.doesNotThrow(() => loadTrackerConfigs(writeTempConfig(t, [{ ...valid[0], sampleMs: 1000 }])));
   });
 
+  test("inherited object keys are not sources", (t) => {
+    // `in` and plain indexing see Object.prototype; "toString" would pass
+    // and install a prototype method as the sampling function.
+    for (const bad of ["toString", "__proto__", "constructor", "hasOwnProperty"]) {
+      const path = writeTempConfig(t, [{ ...valid[0], source: bad }]);
+      assert.throws(() => loadTrackerConfigs(path), /unknown source/, bad);
+    }
+  });
+
   test("rejects a file that is not an array", (t) => {
     assert.throws(() => loadTrackerConfigs(writeTempConfig(t, { name: "one" })), /expected a JSON array/);
   });

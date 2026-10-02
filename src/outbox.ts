@@ -130,6 +130,7 @@ export class SqliteOutbox implements Outbox {
   }
 
   close(): void {
-    this.db.close();
+    // Idempotent: shutdown may run more than once (SIGINT, then SIGTERM).
+    if (this.db.isOpen) this.db.close();
   }
 }

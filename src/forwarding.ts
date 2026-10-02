@@ -23,6 +23,8 @@ export class Forwarder {
   private readonly publisher: Publisher;
   /** Batch ids with a publish started and not yet settled. Written only by dispatch(). */
   private readonly inFlight: Set<string> = new Set();
+  /** The dispatch promises behind inFlight, so stop() can wait for them. */
+  private readonly pending: Set<Promise<void>> = new Set();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(outbox: Outbox, publisher: Publisher, config: ForwarderConfig) {
@@ -39,11 +41,18 @@ export class Forwarder {
     this.timer = setInterval(() => this.tick(), this.config.forwardIntervalMs);
   }
 
-  stop(): void {
+  /**
+   * Stops the ticks at once. The returned promise settles when every publish
+   * that was in flight has settled or timed out, so the caller can close the
+   * outbox afterwards without an ack landing on a closed database. Bounded
+   * by publishTimeoutMs; never rejects.
+   */
+  stop(): Promise<void> {
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
     }
+    return Promise.allSettled(this.pending).then(() => undefined);
   }
 
   /** One tick: claim everything unclaimed, then fill the free publish slots. */
@@ -71,7 +80,9 @@ export class Forwarder {
       for (const batch of candidates) {
         if (free === 0) break;
         if (this.inFlight.has(batch.batch_id)) continue;
-        void this.dispatch(batch);
+        const run = this.dispatch(batch);
+        this.pending.add(run);
+        void run.finally(() => this.pending.delete(run));
         free -= 1;
       }
     } catch (err) {

@@ -19,6 +19,9 @@ export function withTimeOut<T>(ms: number, promise: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new TimeoutError(ms)), ms);
+    // Don't keep the process alive just to time out an abandoned publish
+    // after shutdown; anything still worth waiting for holds its own handle.
+    timer.unref();
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }

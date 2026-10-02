@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import type { TrackerConfig } from "./tracking.ts";
-import { sources } from "./sources.ts";
+import { sources, lookupSource } from "./sources.ts";
 
 /** Application settings. config.json stays in the brief's format; these come from the environment. */
 export interface Settings {
@@ -65,7 +65,7 @@ export function loadTrackerConfigs(path: string): TrackerConfig[] {
     } else {
       seen.add(name);
     }
-    if (typeof source !== "string" || !(source in sources)) {
+    if (typeof source !== "string" || lookupSource(source) === undefined) {
       problems.push(`${where}: unknown source ${JSON.stringify(source)}, expected one of ${Object.keys(sources).join(", ")}`);
     }
     if (typeof sampleMs !== "number" || !Number.isFinite(sampleMs) || sampleMs < 1000) {

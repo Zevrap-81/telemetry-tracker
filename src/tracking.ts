@@ -5,7 +5,7 @@
 
 import type { Message } from "./types.ts";
 import type { Outbox } from "./outbox.ts";
-import { sources, type Source } from "./sources.ts";
+import { lookupSource, type Source } from "./sources.ts";
 
 /** One entry of config.json. */
 export interface TrackerConfig {
@@ -40,22 +40,21 @@ export class Tracker {
     heartbeatMs: number,
     source: Source | null = null,
   ) {
-    // throw new Error("not implemented");
     this.name = config.name;
     this.sampleMs = config.sampleMs;
     this.precision = config.precision;
     this.heartbeatMs = heartbeatMs;
-    if (sources[config.source] != null) {
-      this.source = sources[config.source]!;
-    } else if (source != null) {
-      this.source = source;
-    } else {
+    // An explicitly injected source (tests) wins; otherwise resolve the
+    // config's name through the registry. Config validation has already
+    // rejected unknown names, so the throw is a guard, not a code path.
+    const resolved = source ?? lookupSource(config.source);
+    if (resolved === undefined) {
       throw new Error(`unknown source ${config.source}`);
     }
+    this.source = resolved;
   }
   /** Sample if due. Returns a message when the sample is kept. */
   sample(wallMs: number, monoMs: number): Message | undefined {
-    // throw new Error("not implemented");
     let kept: Message | undefined = undefined;
     const newSample = this.source(wallMs);
 
@@ -97,7 +96,6 @@ export class Scheduler {
     tickMs: number,
     thresholdMs: number,
   ) {
-    // throw new Error("not implemented");
     this.trackers = trackers;
     this.outbox = outbox;
     this.clock = clock;
@@ -106,12 +104,10 @@ export class Scheduler {
     this.expectedMono = this.clock.monotonic();
   }
   start(): void {
-    // throw new Error("not implemented");
     this.expectedMono += this.tickMs;
     this.timer = setInterval(() => this.tick(), this.tickMs);
   }
   stop(): void {
-    // throw new Error("not implemented");
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;

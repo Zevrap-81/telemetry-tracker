@@ -212,6 +212,15 @@ describe("SqliteOutbox: ack", () => {
   });
 });
 
+describe("SqliteOutbox: close", () => {
+  test("closing twice does not throw", (t) => {
+    const outbox = makeOutbox(makeTempDbPath(t));
+
+    outbox.close();
+    assert.doesNotThrow(() => outbox.close());
+  });
+});
+
 describe("SqliteOutbox: restart", () => {
   test("a claimed, unpublished batch survives close and reopen with the same id and messages", (t) => {
     const path = makeTempDbPath(t);

@@ -241,9 +241,11 @@ Failures are retried forever, under the same id, once per tick. There is no
 retry cap and no backlog state: a batch that stopped being retried would be a
 lost batch, and the brief's failures are random, not permanent.
 
-`stop()` clears the interval and returns. In-flight publishes settle on their
-own; whether they ack or not, the outbox is correct, and anything unacked is
-resent after the next start.
+`stop()` clears the interval at once and returns a promise that settles when
+every in-flight publish has settled or timed out, bounded by
+`PUBLISH_TIMEOUT_MS`. `main.ts` awaits it before closing the database, so an
+ack never lands on a closed outbox. Whether those last publishes ack or not,
+the outbox is correct, and anything unacked is resent after the next start.
 
 ### Publisher (`src/publisher.ts`)
 
@@ -275,6 +277,23 @@ Allowed by the brief and by this design:
   publish that wrote and then rejected, a publish that timed out and later
   completed, or an `ack` that failed after a successful publish. All carry
   the same `batch_id`.
+
+Known limit, not fixed:
+
+- **A stalled stdout consumer grows memory.** A full batch line is about
+  265 KB, larger than a pipe buffer. If the reader stops reading, the write
+  sits in Node's buffer and its callback never fires, the publish times out,
+  the slot is freed, and the next tick queues another copy of the same batch
+  behind it: one more copy per `FORWARD_INTERVAL_MS` per slot until the
+  reader resumes, then all of them flush as repeats of one `batch_id`.
+  Correct after dedup, but unbounded memory while stalled. The fix would be
+  to reject the publish when `process.stdout.writableNeedDrain` is set, so
+  nothing is queued and the slot simply retries next tick. Left out because
+  it changes the publisher's contract and the brief's receiver never stalls.
+- **A closed stdout is survivable, a stalled one is not.** If the consumer
+  closes the pipe, each write fails with `EPIPE`, the publish rejects, and
+  the forwarder retries forever; `main.ts` installs the `error` listener that
+  keeps Node from treating the event as fatal.
 
 ## Deviations from the brief
 

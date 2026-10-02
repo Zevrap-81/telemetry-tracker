@@ -309,7 +309,38 @@ describe("Forwarder: lifecycle", () => {
     assert.equal(r.publisher.attempts.length, 2); // on the interval
   });
 
-  test("stop ends the interval and does not wait for in-flight publishes", (t) => {
+  test("stop's promise settles only after in-flight publishes settle", async (t) => {
+    const r = rig(t);
+    r.outbox.append([msg(1)]);
+    r.forwarder.start(); // batch-001 in flight
+
+    let stopped = false;
+    const stopping = r.forwarder.stop().then(() => (stopped = true));
+    await drain();
+    assert.equal(stopped, false); // still waiting on batch-001
+
+    r.publisher.attempt(0).resolve();
+    await stopping;
+
+    assert.equal(stopped, true);
+    assert.deepEqual(r.remaining(), []); // and the ack happened before stop resolved
+  });
+
+  test("stop's promise settles after a hung publish times out", async (t) => {
+    const r = rig(t, { publishTimeoutMs: TIMEOUT_MS });
+    r.outbox.append([msg(1)]);
+    r.forwarder.start();
+
+    let stopped = false;
+    const stopping = r.forwarder.stop().then(() => (stopped = true));
+    t.mock.timers.tick(TIMEOUT_MS);
+    await stopping;
+
+    assert.equal(stopped, true);
+    assert.deepEqual(r.remaining(), ["batch-001"]); // left for the next start
+  });
+
+  test("stop ends the interval at once, without waiting for in-flight publishes", (t) => {
     const r = rig(t);
     r.outbox.append([msg(1)]);
     r.forwarder.start(); // batch-001 in flight and will never settle
