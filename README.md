@@ -12,9 +12,10 @@ Node.js 24, TypeScript, no runtime dependencies. SQLite comes with Node.
 ```bash
 npm install            # dev dependencies only: typescript, @types/node
 npm start              # node src/main.ts, runs until Ctrl-C
-npm test               # node --test, all unit tests
+npm test               # node --test, all unit tests, a few seconds
+npm run test:crash     # kill -9 the real app five times, then check stdout; ~15 s
 npm run typecheck      # tsc --noEmit
-npm run check          # both
+npm run check          # typecheck + unit tests
 ```
 
 stdout carries only batches, one JSON line each. Everything else goes to
@@ -308,10 +309,6 @@ Allowed by the brief and by this design:
   reads.
 - **Metrics on stderr**: event-loop delay, commit latency, batches in flight,
   backlog size.
-- **A crash test that is also the demo**: spawn the app, `SIGKILL` it at
-  random points, restart, and assert over everything on stdout that every
-  snapshotted message appears and that each `name`+`ts` appears under exactly
-  one `batch_id`.
 
 ## Layout
 
@@ -333,7 +330,17 @@ docs/superpowers/specs/
   the design spec this was built from
 ```
 
-Tests use no sleeping: a fake clock for the scheduler, Node's built-in fake
-timers for the forwarder and the timeout, a scripted publisher whose promises
-the test settles by hand, and the real SQLite outbox on a temp file or in
-memory.
+Unit tests use no sleeping: a fake clock for the scheduler, Node's built-in
+fake timers for the forwarder and the timeout, a scripted publisher whose
+promises the test settles by hand, and the real SQLite outbox on a temp file
+or in memory.
+
+Two tests run the real process. `test/smoke.test.ts` starts it, lets it run
+for two seconds with failures off, stops it with SIGINT and checks both
+streams. `test/crash.test.ts` (`npm run test:crash`) is the brief's three
+requirements in one place: it `SIGKILL`s the app five times at random
+moments, checks `PRAGMA integrity_check` after every kill, records every
+message the outbox was ever seen to hold, drains with failures off, and then
+asserts over everything that reached stdout that every recorded message is
+there, that each `name`+`ts` appears under exactly one `batch_id`, and that
+at least one batch was resent, so the retry path really ran.

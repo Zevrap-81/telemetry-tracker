@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node src/main.ts",
-    "test": "node --test 'test/**/*.test.ts'",
+    "test": "node --test --test-skip-pattern 'crash test' 'test/**/*.test.ts'",
+    "test:crash": "node --test test/crash.test.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test"
   },
