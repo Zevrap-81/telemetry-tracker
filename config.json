@@ -1,0 +1,5 @@
+[
+  { "name": "one",   "source": "sin", "sampleMs": 1000, "precision": 0.08 },
+  { "name": "two",   "source": "cos", "sampleMs": 2000, "precision": 0.15 },
+  { "name": "three", "source": "sin", "sampleMs": 1000, "precision": 5 }
+]

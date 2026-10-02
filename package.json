@@ -1,0 +1,20 @@
+{
+  "name": "telemetry-tracker",
+  "version": "0.1.0",
+  "description": "Durable telemetry tracker: sample virtual sources, keep significant samples in a crash-safe outbox, forward them in batches over an unreliable channel.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test 'test/**/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}
