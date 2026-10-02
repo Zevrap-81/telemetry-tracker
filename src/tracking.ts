@@ -5,7 +5,7 @@
 
 import type { Message } from "./types.ts";
 import type { Outbox } from "./outbox.ts";
-import type { Source } from "./sources.ts";
+import { sources, type Source } from "./sources.ts";
 
 /** One entry of config.json. */
 export interface TrackerConfig {
@@ -17,8 +17,8 @@ export interface TrackerConfig {
 
 /** Two clocks: wall time for `ts`, monotonic time for "how long since". */
 export interface Clock {
-  now(): number;
-  monotonic(): number;
+  now: () => number;
+  monotonic: () => number;
 }
 
 export const systemClock: Clock = {
@@ -27,12 +27,58 @@ export const systemClock: Clock = {
 };
 
 export class Tracker {
-  constructor(_config: TrackerConfig, _source: Source, _heartbeatMs: number) {
-    throw new Error("not implemented");
+  private readonly name: string;
+  private readonly source: Source;
+  private readonly sampleMs: number;
+  private readonly precision: number;
+  private readonly heartbeatMs: number;
+  private lastKept: { value: number; atMono: number } | null = null;
+  private nextDueMono: number = 0;
+
+  constructor(
+    config: TrackerConfig,
+    heartbeatMs: number,
+    source: Source | null = null,
+  ) {
+    // throw new Error("not implemented");
+    this.name = config.name;
+    this.sampleMs = config.sampleMs;
+    this.precision = config.precision;
+    this.heartbeatMs = heartbeatMs;
+    if (sources[config.source] != null) {
+      this.source = sources[config.source]!;
+    } else if (source != null) {
+      this.source = source;
+    } else {
+      throw `unknown source ${config.source}`;
+    }
   }
   /** Sample if due. Returns a message when the sample is kept. */
-  sample(_wallMs: number, _monoMs: number): Message | undefined {
-    throw new Error("not implemented");
+  sample(wallMs: number, monoMs: number): Message | undefined {
+    // throw new Error("not implemented");
+    let kept: Message | undefined = undefined;
+    const newSample = this.source(wallMs);
+
+    if (!this.isDue(monoMs)) return undefined;
+
+    if (
+      this.lastKept === null ||
+      this.lastKept.atMono + this.heartbeatMs < monoMs ||
+      Math.abs(this.lastKept.value - newSample) >= this.precision
+    ) {
+      kept = { name: this.name, ts: wallMs, value: newSample };
+      this.lastKept = { value: newSample, atMono: monoMs };
+    }
+
+    // update nextDueMono incase of late sample
+    while (this.isDue(monoMs)) {
+      this.nextDueMono += this.sampleMs;
+    }
+    return kept;
+  }
+
+  private isDue(monoMs: number): boolean {
+    return this.nextDueMono <= monoMs;
   }
 }
 
