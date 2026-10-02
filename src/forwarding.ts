@@ -44,8 +44,6 @@ export class Forwarder {
       clearInterval(this.timer);
       this.timer = null;
     }
-    // In-flight publishes are left to settle on their own. Whether they ack
-    // or not, the outbox is correct: unacked rows are resent after restart.
   }
 
   /** One tick: claim everything unclaimed, then fill the free publish slots. */
@@ -73,9 +71,6 @@ export class Forwarder {
       for (const batch of candidates) {
         if (free === 0) break;
         if (this.inFlight.has(batch.batch_id)) continue;
-        // Not awaited on purpose: each batch has its own lifecycle and a
-        // hung one must not hold up the others. Safe because dispatch()
-        // never rejects.
         void this.dispatch(batch);
         free -= 1;
       }
