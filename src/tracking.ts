@@ -83,13 +83,63 @@ export class Tracker {
 }
 
 export class Scheduler {
-  constructor(_trackers: Tracker[], _outbox: Outbox, _clock: Clock, _tickMs: number) {
-    throw new Error("not implemented");
+  private readonly trackers: Tracker[];
+  private readonly outbox: Outbox;
+  private readonly clock: Clock;
+  private readonly tickMs: number;
+  private readonly thresholdMs: number;
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private expectedMono: number;
+  constructor(
+    trackers: Tracker[],
+    outbox: Outbox,
+    clock: Clock,
+    tickMs: number,
+    thresholdMs: number,
+  ) {
+    // throw new Error("not implemented");
+    this.trackers = trackers;
+    this.outbox = outbox;
+    this.clock = clock;
+    this.tickMs = tickMs;
+    this.thresholdMs = thresholdMs;
+    this.expectedMono = this.clock.monotonic();
   }
   start(): void {
-    throw new Error("not implemented");
+    // throw new Error("not implemented");
+    this.expectedMono += this.tickMs;
+    this.timer = setInterval(() => this.tick(), this.tickMs);
   }
   stop(): void {
-    throw new Error("not implemented");
+    // throw new Error("not implemented");
+    if (this.timer !== null) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+  tick(): void {
+    const clockNow = this.clock.now();
+    const clockMono = this.clock.monotonic();
+
+    const delay = clockMono - this.expectedMono;
+    if (delay > this.thresholdMs) {
+      console.error(`The tick was late by ${delay}ms`);
+    }
+
+    const pending: Message[] = [];
+    for (const tracker of this.trackers) {
+      const sample_message = tracker.sample(clockNow, clockMono);
+      if (sample_message !== undefined) pending.push(sample_message);
+    }
+
+    if (pending.length > 0) {
+      try {
+        this.outbox.append(pending);
+      } catch (err) {
+        console.error("outbox append failed, dropping tick", err);
+      }
+    }
+
+    this.expectedMono = clockMono + this.tickMs;
   }
 }
