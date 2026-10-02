@@ -50,7 +50,7 @@ export class Tracker {
     } else if (source != null) {
       this.source = source;
     } else {
-      throw `unknown source ${config.source}`;
+      throw new Error(`unknown source ${config.source}`);
     }
   }
   /** Sample if due. Returns a message when the sample is kept. */
