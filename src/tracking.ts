@@ -5,14 +5,7 @@
 
 import type { Message } from "./types.ts";
 import type { Outbox } from "./outbox.ts";
-
-/** A virtual data source: deterministic in time. */
-export type Source = (unixTimeMs: number) => number;
-
-export const sources: Record<string, Source> = {
-  sin: (t) => Math.sin(t / 10000),
-  cos: (t) => Math.cos(t / 10000),
-};
+import type { Source } from "./sources.ts";
 
 /** One entry of config.json. */
 export interface TrackerConfig {

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { sources } from "../src/tracking.ts";
+import { sources } from "../src/sources.ts";
 
 test("sources are deterministic in time", () => {
   assert.equal(sources["sin"]!(0), 0);
